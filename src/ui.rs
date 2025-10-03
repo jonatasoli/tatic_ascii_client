@@ -1,14 +1,14 @@
 use iced::{
-    widget::{button, column, container, row, text, Button, Column, Container, Row, Text},
-    Alignment, Element, Length,
+    widget::{button, column, container, row, text},
+    Alignment,
 };
 
 /// Cria painel de informações do jogador
 pub fn player_info_panel<'a>(
-    player_name: &str,
+    player_name: &'a str,
     units_count: usize,
     is_current_turn: bool,
-) -> Container<'a, crate::Message> {
+) -> iced::widget::Container<'a, crate::Message> {
     let title = text(player_name).size(18);
     
     let units = text(format!("Unidades: {}", units_count)).size(14);
@@ -22,14 +22,13 @@ pub fn player_info_panel<'a>(
     container(
         column![title, units, turn_indicator]
             .spacing(5)
-            .align_items(Alignment::Start),
+            .align_x(Alignment::Start),
     )
     .padding(10)
-    .style(iced::theme::Container::Box)
 }
 
 /// Cria painel de controles de jogo
-pub fn game_controls<'a>() -> Row<'a, crate::Message> {
+pub fn game_controls<'a>() -> iced::widget::Row<'a, crate::Message> {
     row![
         button("⬆ W").width(50),
         button("⬇ S").width(50),
@@ -42,11 +41,11 @@ pub fn game_controls<'a>() -> Row<'a, crate::Message> {
 }
 
 /// Cria indicador de status da conexão
-pub fn connection_indicator<'a>(is_connected: bool) -> Container<'a, crate::Message> {
-    let (icon, text_str, color) = if is_connected {
-        ("🟢", "Conectado", [0.0, 0.8, 0.0, 1.0])
+pub fn connection_indicator<'a>(is_connected: bool) -> iced::widget::Container<'a, crate::Message> {
+    let (icon, text_str) = if is_connected {
+        ("🟢", "Conectado")
     } else {
-        ("🔴", "Desconectado", [0.8, 0.0, 0.0, 1.0])
+        ("🔴", "Desconectado")
     };
     
     container(
@@ -55,7 +54,7 @@ pub fn connection_indicator<'a>(is_connected: bool) -> Container<'a, crate::Mess
             text(text_str).size(12)
         ]
         .spacing(5)
-        .align_items(Alignment::Center),
+        .align_y(Alignment::Center),
     )
     .padding(5)
 }

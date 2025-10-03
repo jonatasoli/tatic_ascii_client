@@ -7,8 +7,8 @@
 //! - Loga todas as ações detalhadamente
 
 use iced::{
-    widget::{button, column, container, row, scrollable, text, Column, Container, Row, Text},
-    Alignment, Application, Command, Element, Length, Settings, Theme,
+    widget::{button, column, container, row, scrollable, text},
+    Alignment, Element, Length, Task, Theme,
 };
 use tracing::{error, info, warn};
 
@@ -84,13 +84,9 @@ pub enum Message {
     AiMoveResult(Result<Action, String>),
 }
 
-impl Application for RpgAsciiClient {
-    type Executor = iced::executor::Default;
-    type Message = Message;
-    type Flags = ();
-    type Theme = Theme;
-
-    fn new(_flags: ()) -> (Self, Command<Message>) {
+impl RpgAsciiClient {
+    /// Cria nova instância do cliente
+    pub fn new() -> (Self, Task<Message>) {
         init_logging();
         
         info!("🎮 Iniciando cliente do RPG ASCII Tático");
@@ -106,14 +102,16 @@ impl Application for RpgAsciiClient {
             input_mode: InputMode::SelectUnit,
         };
         
-        (client, Command::none())
+        (client, Task::none())
     }
 
-    fn title(&self) -> String {
+    /// Título da janela
+    pub fn title(&self) -> String {
         String::from("RPG ASCII Tático - Cliente")
     }
 
-    fn update(&mut self, message: Message) -> Command<Message> {
+    /// Processa mensagens e retorna tasks
+    pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Connect => {
                 info!("🔌 Tentando conectar ao servidor...");
@@ -121,7 +119,7 @@ impl Application for RpgAsciiClient {
                 self.add_log("Conectando ao servidor...".to_string());
                 
                 let network = self.network.clone();
-                Command::perform(
+                Task::perform(
                     async move {
                         network.connect().await
                     },
@@ -138,13 +136,13 @@ impl Application for RpgAsciiClient {
                         self.add_log(format!("Conectado à partida: {}", match_id));
                         
                         // Busca estado inicial
-                        Command::perform(async {}, |_| Message::RefreshState)
+                        Task::perform(async {}, |_| Message::RefreshState)
                     }
                     Err(e) => {
                         error!("❌ Erro ao conectar: {}", e);
                         self.connection_status = ConnectionStatus::Error(e.clone());
                         self.add_log(format!("Erro: {}", e));
-                        Command::none()
+                        Task::none()
                     }
                 }
             }
@@ -192,7 +190,8 @@ impl Application for RpgAsciiClient {
                             };
                             
                             self.input_mode = InputMode::WaitingResponse;
-                            return Command::perform(async {}, move |_| Message::SendAction(action));
+                            let action_clone = action.clone();
+                            return Task::perform(async {}, move |_| Message::SendAction(action_clone));
                         }
                     }
                     
@@ -201,17 +200,19 @@ impl Application for RpgAsciiClient {
                     }
                 }
                 
-                Command::none()
+                Task::none()
             }
             
             Message::SendAction(action) => {
                 if let Some(match_id) = &self.match_id {
                     info!("📤 Enviando ação: {:?}", action);
-                    self.add_log(format!("Enviando: {:?}", action));
                     
+                    let log_message = format!("Enviando: {:?}", action);
                     let network = self.network.clone();
                     let match_id = match_id.clone();
                     let player_id = self.player_id.clone();
+                    
+                    self.add_log(log_message);
                     
                     // Log detalhado ANTES do request
                     info!(
@@ -219,7 +220,7 @@ impl Application for RpgAsciiClient {
                         player_id, action
                     );
                     
-                    Command::perform(
+                    Task::perform(
                         async move {
                             network.send_action(&match_id, &player_id, action).await
                         },
@@ -227,7 +228,7 @@ impl Application for RpgAsciiClient {
                     )
                 } else {
                     self.add_log("Não conectado!".to_string());
-                    Command::none()
+                    Task::none()
                 }
             }
             
@@ -247,7 +248,7 @@ impl Application for RpgAsciiClient {
                         self.selected_coord = None;
                     }
                 }
-                Command::none()
+                Task::none()
             }
             
             Message::RefreshState => {
@@ -255,7 +256,7 @@ impl Application for RpgAsciiClient {
                     let network = self.network.clone();
                     let match_id = match_id.clone();
                     
-                    Command::perform(
+                    Task::perform(
                         async move {
                             network.get_state(&match_id).await
                         },
@@ -265,7 +266,7 @@ impl Application for RpgAsciiClient {
                         },
                     )
                 } else {
-                    Command::none()
+                    Task::none()
                 }
             }
             
@@ -273,13 +274,13 @@ impl Application for RpgAsciiClient {
                 self.selected_coord = None;
                 self.input_mode = InputMode::SelectUnit;
                 self.add_log("Seleção limpa".to_string());
-                Command::none()
+                Task::none()
             }
             
             Message::KeyPressed(key) => {
                 info!("⌨️ Tecla pressionada: {}", key);
                 // Implementar controle por teclado WASD
-                Command::none()
+                Task::none()
             }
             
             Message::RequestAiMove => {
@@ -290,17 +291,17 @@ impl Application for RpgAsciiClient {
                         let match_id = match_id.clone();
                         let ai_player = state.turn.clone();
                         
-                        Command::perform(
+                        Task::perform(
                             async move {
                                 network.get_ai_action(&match_id, &ai_player).await
                             },
                             Message::AiMoveResult,
                         )
                     } else {
-                        Command::none()
+                        Task::none()
                     }
                 } else {
-                    Command::none()
+                    Task::none()
                 }
             }
             
@@ -309,12 +310,13 @@ impl Application for RpgAsciiClient {
                     Ok(action) => {
                         info!("🤖 IA escolheu: {:?}", action);
                         self.add_log(format!("IA joga: {:?}", action));
-                        Command::perform(async {}, move |_| Message::SendAction(action))
+                        let action_clone = action.clone();
+                        Task::perform(async {}, move |_| Message::SendAction(action_clone))
                     }
                     Err(e) => {
                         error!("❌ Erro na IA: {}", e);
                         self.add_log(format!("Erro IA: {}", e));
-                        Command::none()
+                        Task::none()
                     }
                 }
             }
@@ -330,12 +332,13 @@ impl Application for RpgAsciiClient {
                         }
                     }
                 }
-                Command::none()
+                Task::none()
             }
         }
     }
 
-    fn view(&self) -> Element<Message> {
+    /// Renderiza a interface
+    pub fn view(&self) -> Element<Message> {
         let title = text("RPG ASCII Tático")
             .size(30);
 
@@ -358,8 +361,8 @@ impl Application for RpgAsciiClient {
             container(text("Aguardando conexão..."))
                 .width(Length::Fill)
                 .height(400)
-                .center_x()
-                .center_y()
+                .center_x(Length::Fill)
+                .center_y(Length::Fill)
         };
 
         // Informações do jogo
@@ -375,13 +378,13 @@ impl Application for RpgAsciiClient {
 
         // Log de mensagens
         let log_view = scrollable(
-            Column::with_children(
+            column(
                 self.message_log
                     .iter()
                     .rev()
                     .take(10)
                     .map(|msg| text(msg).size(12).into())
-                    .collect(),
+                    .collect::<Vec<_>>(),
             )
         )
         .height(150);
@@ -400,7 +403,7 @@ impl Application for RpgAsciiClient {
                 container(log_view).padding(10),
             ]
             .spacing(20)
-            .align_items(Alignment::Center),
+            .align_x(Alignment::Center),
         )
         .width(Length::Fill)
         .height(Length::Fill)
@@ -422,11 +425,20 @@ impl RpgAsciiClient {
 }
 
 fn init_logging() {
-    tracing_subscriber::fmt()
-        .with_env_filter("info,client=debug")
+    use tracing_subscriber::fmt;
+    use tracing_subscriber::EnvFilter;
+    
+    fmt()
+        .with_env_filter(EnvFilter::new("info,client=debug"))
         .init();
 }
 
 fn main() -> iced::Result {
-    RpgAsciiClient::run(Settings::default())
+    iced::application(
+        "RPG ASCII Tático - Cliente",
+        RpgAsciiClient::update,
+        RpgAsciiClient::view,
+    )
+    .theme(|_| Theme::Dark)
+    .run_with(RpgAsciiClient::new)
 }

@@ -2,11 +2,12 @@ use anyhow::Result;
 use tatic_lib::{Action, GameState};
 use reqwest::Client;
 use serde_json::json;
-use tracing::{debug, error, info};
+use tracing::{debug, info};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct NetworkClient {
     base_url: String,
+    #[allow(dead_code)]
     client: Client,
 }
 
